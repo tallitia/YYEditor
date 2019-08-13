@@ -1,0 +1,10 @@
+﻿local model = basemodel:new()
+local base = model
+
+function model:start()
+end
+
+function model:destroy()
+end
+
+return model

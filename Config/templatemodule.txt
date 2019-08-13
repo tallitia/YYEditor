@@ -1,0 +1,15 @@
+﻿local module = basemodule:new(modulename.#)
+local base = module
+
+function module.load()
+	local model = require "module/#/#_model"
+	local view = require "module/#/#_view"
+	local ctrl = require "module/#/#_ctrl"
+    base:init(model, view, ctrl)
+end
+
+function module.unload()
+	base:uninit()
+end
+
+return module

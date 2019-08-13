@@ -1,0 +1,10 @@
+﻿local ctrl = basectrl:new()
+local base = ctrl
+
+function ctrl:start()
+end
+
+function ctrl:destroy()
+end
+
+return ctrl

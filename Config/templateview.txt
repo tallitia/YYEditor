@@ -1,0 +1,13 @@
+﻿local view = baseview:new("prefab name")
+local base = view
+
+function view:start()
+end
+
+function view:commit()
+end
+
+function view:destroy()
+end
+
+return view
