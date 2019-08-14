@@ -2,28 +2,30 @@
 
 public class EditorConst
 {
-    /// 资源根目录
-    public const string ASSET_ROOT = "Assets/Game/Assets/";
+    public const string GAME_ROOT = "Assets/Game/";
 
-    /// 脚本根目录
-    public const string LUA_ROOT = "Assets/Game/Assets/Lua/";
+    public const string ASSET_ROOT = GAME_ROOT + "Assets/";
 
-    ///Database目录
-    public const string LUA_DATABASE = LUA_ROOT + "/database/";
+    public const string LUA_ROOT = GAME_ROOT + "Lua/";
 
-    /// 脚本配置文件
-    public const string LUA_CONFIG_PATH = "Assets/Game/Editor/Config/LuaConfig.txt";
+    public const string LUA_OUT = ASSET_ROOT + "Lua/";
 
-    /// 资源配置文件 
-    public const string ASSET_CONFIG_PATH = "Assets/Game/Editor/Config/AssetConfig.txt";
+    public const string TOLUA_ROOT = GAME_ROOT + "ToLua/Lua/";
 
-    /// AssetBundle压缩包路径
+    public const string TOLUA_OUT = ASSET_ROOT + "ToLua/";
+
+    public const string DATABASE_ROOT = LUA_ROOT + "/database/";
+
+    public const string DATABASE_OUT = LUA_OUT + "/database/";
+
+    public const string LUA_CONFIG_PATH = GAME_ROOT + "Editor/Config/LuaConfig.txt";
+
+    public const string ASSET_CONFIG_PATH = GAME_ROOT + "Editor/Config/AssetConfig.txt";
+
     public static string ABZIP_PATH = Application.streamingAssetsPath + "/ab.zip";
 
-    /// AssetBundle路径
     public static string AB_PATH = Application.streamingAssetsPath + "/ab";
 
-    /// AssetBundle输出路径
     public static string AB_OUTPUT_PATH = "AssetBundles/";
 
 }

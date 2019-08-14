@@ -145,7 +145,6 @@ public class PackageApi
         UnityEngine.Debug.Log("Build Databases Finish!!");
     }
 
-
     /// pack assetbundles, multi: multi-language
     public static List<AssetBundleBuild> PackAssetBundles(bool multi)
     {
@@ -221,10 +220,6 @@ public class PackageApi
         return buildmap;
     }
 
-
-
-    
-
     /// ex:Assets/Game/Assets/Images/Common --> images_common.ab
     private static string MakeAssetBundleName(string path)
     {
@@ -291,7 +286,6 @@ public class PackageApi
         }
         return list.ToArray();
     }
-
 
     /// 文件夹里的文件打成一个AB, 不包含文件夹里的文件夹
     public static AssetBundleBuild[] DoMakeAssetBundleBuild4(string src)
@@ -433,7 +427,6 @@ public class PackageApi
         File.Delete(raw + "temp.ttf");
         AssetDatabase.Refresh();
     }
-
 
     /// pack assetbundles zip ab.zip, multi: multi-language
     public static void PackAssetBundlesZip(bool multi)

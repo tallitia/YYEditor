@@ -9,28 +9,25 @@ public class LuaPackager {
 
     public static void EncodeLuaFiles()
     {
-        HandleAllLuaFiles("Assets/Game/Lua/", EditorConst.LUA_ROOT + "/");
-        HandleAllLuaFiles("Assets/Game/ToLua/Lua/", EditorConst.LUA_ROOT + "/");
-
+        EncodeLuaJIT32Files();
+        EncodeLuaJIT64Files();
         AssetDatabase.Refresh();
         UnityEngine.Debug.Log("Encode lua files finish!!");
     }
-
-
 
     #region Database的处理
 
     public static void EncodeDatabaseFiles()
     {
-        HandleAllLuaFiles(EditorConst.LUA_DATABASE, EditorConst.LUA_ROOT + "32/database/", 32);
-        HandleAllLuaFiles(EditorConst.LUA_DATABASE, EditorConst.LUA_ROOT + "64/database/", 64);
+        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorConst.LUA_OUT + "32/database/", 32);
+        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorConst.LUA_OUT + "64/database/", 64);
     }
     #endregion
 
     public static void EncodeLuaJIT32Files()
     {
-        HandleAllLuaFiles("Assets/Game/Lua/", EditorConst.LUA_ROOT + "32/", 32);
-        HandleAllLuaFiles("Assets/Game/ToLua/Lua/", EditorConst.LUA_ROOT + "32/", 32);
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorConst.LUA_OUT + "32/", 32);
+        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorConst.TOLUA_OUT + "32/", 32);
 
         AssetDatabase.Refresh();
         UnityEngine.Debug.Log("Encode LuaJIT32 lua files finish!!");
@@ -38,11 +35,8 @@ public class LuaPackager {
 
     public static void EncodeLuaJIT64Files()
     {
-        //if (!EditorUtility.DisplayDialog("", "Encode LuaJIT64 Lua Files?", "Yes", "No"))
-        //    return;
-
-        HandleAllLuaFiles("Assets/Game/Lua/", EditorConst.LUA_ROOT + "64/", 64);
-        HandleAllLuaFiles("Assets/Game/ToLua/Lua/", EditorConst.LUA_ROOT + "64/", 64);
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorConst.LUA_OUT + "32/", 64);
+        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorConst.TOLUA_OUT + "32/", 64);
 
         AssetDatabase.Refresh();
         UnityEngine.Debug.Log("Encode LuaJIT64 lua files finish!!");
