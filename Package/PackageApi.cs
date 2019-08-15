@@ -9,6 +9,7 @@ using System.Security;
 public class PackageApi 
 {
     public delegate void BuildAction();
+    private delegate AssetBundleBuild[] BundleAction(string src);
 
     public static string VERSION = "";
     public static string VERSION_PATH = OUTPUT_ROOT + "version.txt";
@@ -19,7 +20,25 @@ public class PackageApi
 
     public static List<string> FilterExtensions = new List<string> { ".meta" };
 
-    public static BuildTarget buildTarget;
+    private static List<BundleAction> allHandler = new List<BundleAction>()
+    {
+        DoMakeAssetBundleBuild1,
+        DoMakeAssetBundleBuild2,
+        DoMakeAssetBundleBuild3,
+        DoMakeAssetBundleBuild4,
+    };
+
+    public static BuildTarget m_BuildTarget;
+    public static BuildTarget buildTarget {
+        set { m_BuildTarget = value; }
+        get
+        {
+            if (m_BuildTarget == BuildTarget.NoTarget)
+                m_BuildTarget = EditorUserBuildSettings.activeBuildTarget;
+
+            return m_BuildTarget;
+        }
+    }
 
     public static string OUTPUT_ROOT
     {
@@ -30,7 +49,8 @@ public class PackageApi
                 string content = File.ReadAllText(AppConst.SettingPath);
                 SecurityElement setting = SecurityElement.FromString(content);
                 VERSION = setting.Attribute("version");
-
+                string p = EditorConst.AB_OUTPUT_PATH;
+                EditorConst.AB_OUTPUT_PATH = Directory.GetCurrentDirectory() + "/" + p;
             }
             return EditorConst.AB_OUTPUT_PATH + VERSION + "/" + AppConst.OS + "/";
         }
@@ -112,10 +132,13 @@ public class PackageApi
     {
         buildTarget = target;
         string message = string.Format("确认切换到{0}平台打包{1}资源？", platform, typeName);
-        bool ret = EditorUtility.DisplayDialog("提示", message, "确认", "取消");
+        bool ret = true;
+        if (EditorUserBuildSettings.activeBuildTarget != target)
+        {
+            ret = EditorUtility.DisplayDialog("提示", message, "确认", "取消");
+        }
         if (ret)
         {
-            UnityEngine.Debug.Log("1111");
             EditorUserBuildSettings.SwitchActiveBuildTarget(group, target);
             action();
         }
@@ -123,128 +146,102 @@ public class PackageApi
 
     private static void BuildNormalAB()
     {
-        PackAssetBundles(false);
+        PackAssetBundles();
     }
 
     private static void BuildZipAB()
     {
-        PackAssetBundlesZip(false);
+        PackAssetBundlesZip();
     }
 
     private static void BuildDatabase()
     {
         LuaPackager.EncodeDatabaseFiles();
-        LuaPackager.BuildDatabaseFiles();
         UnityEngine.Debug.Log("Build Databases Finish!!");
     }
 
     private static void BuildLua()
     {
-        LuaPackager.EncodeLuaJIT32Files();
-        LuaPackager.EncodeLuaJIT64Files();
-        UnityEngine.Debug.Log("Build Databases Finish!!");
+        LuaPackager.EncodeLuaFiles();
+
+
+        UnityEngine.Debug.Log("Build Lua Finish!!");
     }
 
-    /// pack assetbundles, multi: multi-language
-    public static List<AssetBundleBuild> PackAssetBundles(bool multi)
+    public static List<AssetBundleBuild> PackAssetBundles()
     {
         if (EditorApplication.isCompiling)
         {
             EditorUtility.DisplayDialog("", "Script is compiling, try again later.", "Yes");
             return null;
         }
+        //Complie Lua File
+        //LuaPackager.EncodeLuaFiles();
 
-        LuaPackager.EncodeLuaJIT32Files();
-        LuaPackager.EncodeLuaJIT64Files();
-
-        //read config
+        //Read The Build Config File
         Dictionary<string, int> config = new Dictionary<string, int>();
-        string[] lines = File.ReadAllLines(EditorConst.ASSET_CONFIG_PATH);
-        for (int i = 0; i < lines.Length; i++)
-        {
-            //路径 | 打包方式(1:文件夹打包成一个AB, 2:文件打成一个AB, 3:文件夹里的文件夹打成一个AB, 4:文件夹里的文件打成一个AB)
-            string[] line = lines[i].Split('|');
-            config.Add(line[0], int.Parse(line[1]));
-        }
+        EditorUtil.ReadAssetConfig(config);
 
-        //make build map
+        //Get All AssetBundle File
         List<AssetBundleBuild> buildmap = new List<AssetBundleBuild>();
         foreach (var pair in config)
         {
-            string mname = "DoMakeAssetBundleBuild" + pair.Value;
-            MethodInfo method = typeof(PackageApi).GetMethod(mname, BindingFlags.Static | BindingFlags.Public);
-            if (method == null) continue;
-            string src = EditorConst.ASSET_ROOT + pair.Key;
-            object builds = method.Invoke(null, new object[] { src });
-            buildmap.AddRange(builds as IEnumerable<AssetBundleBuild>);
+            BundleAction handler = allHandler[pair.Value-1];
+            string path = EditorConst.ASSET_ROOT + pair.Key;
+            if (Directory.Exists(path))
+            {
+                var builds = handler.Invoke(path);
+                buildmap.AddRange(builds as IEnumerable<AssetBundleBuild>);
+            }
         }
 
         if (!Directory.Exists(OUTPUT_ROOT)) Directory.CreateDirectory(OUTPUT_ROOT);
-        PackageApi.BuildAssetConfig(EditorConst.ASSET_CONFIG_PATH, buildmap);
-        PackageApi.BuildLuaConfig(EditorConst.LUA_CONFIG_PATH, buildmap);
+
+        DoMakeAssetBundleAssetConfig(EditorConst.ASSET_CONFIG_PATH, buildmap);
+        DoMakeAssetBundleLuaConfig(EditorConst.LUA_CONFIG_PATH, buildmap);
         AssetDatabase.Refresh();
 
-        //build assetbundles
+        //Begin Build PipeLine
         BuildPipeline.BuildAssetBundles(OUTPUT_ROOT, buildmap.ToArray(),
             BuildAssetBundleOptions.ChunkBasedCompression,
             EditorUserBuildSettings.activeBuildTarget);
 
-        //rename manifest file
+        // Handle The Main Manifest
         string manifestPath = OUTPUT_ROOT + Path.GetFileName(Path.GetDirectoryName(OUTPUT_ROOT));
         File.Copy(manifestPath, OUTPUT_ROOT + AB_MANIFEST + AB_EXTENSION, true);
         File.Delete(manifestPath);
         File.Copy(manifestPath + ".manifest", OUTPUT_ROOT + AB_MANIFEST + ".manifest", true);
         File.Delete(manifestPath + ".manifest");
-
-        //add manifest to version control
         AssetBundleBuild abb = new AssetBundleBuild();
         abb.assetBundleName = AB_MANIFEST + AB_EXTENSION;
         buildmap.Add(abb);
-
-        if (multi)
-        {
-            //build fonts
-            PackageApi.BuildFontAssetBundle("zh", buildmap);
-            PackageApi.BuildFontAssetBundle("hk", buildmap);
-            PackageApi.BuildFontAssetBundle("en", buildmap);
-        }
-
-        //build version file
-        PackageApi.BuildVersionFile(VERSION_PATH, OUTPUT_ROOT, buildmap);
-
-        //build database file
-        LuaPackager.BuildDatabaseFiles();
+        BuildVersionFile(VERSION_PATH, OUTPUT_ROOT, buildmap);
 
         AssetDatabase.Refresh();
         UnityEngine.Debug.Log("Build assetbundles files finish!!");
         return buildmap;
     }
 
-    /// ex:Assets/Game/Assets/Images/Common --> images_common.ab
-    private static string MakeAssetBundleName(string path)
+    // Pack Zip
+    public static void PackAssetBundlesZip()
     {
-        string abname = path.Replace(EditorConst.ASSET_ROOT, "").Replace("\\", "/").Replace("/", "_");
-        return abname.Split('.')[0].ToLower() + AB_EXTENSION;
-    }
+        List<AssetBundleBuild> buildmap = PackAssetBundles();
+        if (buildmap == null)
+            return;
+        string zipPath = OUTPUT_ROOT + "zip/";
+        if (Directory.Exists(zipPath)) Directory.Delete(zipPath, true);
+        Directory.CreateDirectory(zipPath);
 
-    /// create the assetbundle build 
-    private static AssetBundleBuild[] MakeAssetBundleBuild(string abname, string[] files)
-    {
-        List<string> list = new List<string>();
-        for (int i = 0; i < files.Length; i++)
-        {
-            string ext = Path.GetExtension(files[i]);
-            if (FilterExtensions.IndexOf(ext) != -1)
-                continue;
+        string abPath = EditorConst.AB_PATH;
+        if (Directory.Exists(abPath)) Directory.Delete(abPath, true);
 
-            list.Add(files[i].Replace("\\", "/"));
-        }
-        if (list.Count == 0) return new AssetBundleBuild[0];
+        Zip.ZipDerctory(OUTPUT_ROOT, EditorConst.ABZIP_PATH, ".manifest|.meta");
 
-        AssetBundleBuild build = new AssetBundleBuild();
-        build.assetBundleName = abname;
-        build.assetNames = list.ToArray();
-        return new AssetBundleBuild[] { build };
+        //byte[] bytes = File.ReadAllBytes(ABZIP_PATH);
+        //byte[] buff = AesTool.Encrypt(bytes, 0, bytes.Length, SDKConst.SECRET);
+        //File.WriteAllBytes(ABZIP_PATH, buff);
+        AssetDatabase.Refresh();
+        UnityEngine.Debug.Log("Build ab.zip finish!!");
     }
 
     /// 文件夹打包成一个AB
@@ -299,6 +296,65 @@ public class PackageApi
         return list.ToArray();
     }
 
+    // Add AssetConfig To Build Map
+    private static void DoMakeAssetBundleAssetConfig(string path, List<AssetBundleBuild> buildmap)
+    {
+        string abname = Path.GetFileNameWithoutExtension(path).ToLower();
+        AssetBundleBuild build = new AssetBundleBuild();
+        build.assetBundleName = abname + AB_EXTENSION;
+        build.assetNames = new string[] { path };
+        buildmap.Add(build);
+    }
+
+    // Add LuaConfig To Build Map
+    private static void DoMakeAssetBundleLuaConfig(string path, List<AssetBundleBuild> buildmap)
+    {
+        string content = string.Empty;
+        for (int i = 0; i < buildmap.Count; i++)
+        {
+            if (!buildmap[i].assetBundleName.StartsWith("lua"))
+                continue;
+
+            if (content != string.Empty) content += "\n";
+            content += buildmap[i].assetBundleName;
+        }
+        File.WriteAllText(path, content);
+
+        //add to build
+        string abname = Path.GetFileNameWithoutExtension(path).ToLower();
+        AssetBundleBuild build = new AssetBundleBuild();
+        build.assetBundleName = abname + AB_EXTENSION;
+        build.assetNames = new string[] { path };
+        buildmap.Add(build);
+    }
+
+    // Get Bundle Name Eg: Assets/Game/Assets/Images/Common --> images_common.ab
+    private static string MakeAssetBundleName(string path)
+    {
+        string abname = path.Replace(EditorConst.ASSET_ROOT, "").Replace("\\", "/").Replace("/", "_");
+        return abname.Split('.')[0].ToLower() + AB_EXTENSION;
+    }
+
+    // Create Build Map
+    private static AssetBundleBuild[] MakeAssetBundleBuild(string abname, string[] files)
+    {
+        List<string> list = new List<string>();
+        for (int i = 0; i < files.Length; i++)
+        {
+            string ext = Path.GetExtension(files[i]);
+            if (FilterExtensions.IndexOf(ext) != -1)
+                continue;
+
+            list.Add(files[i].Replace("\\", "/"));
+        }
+        if (list.Count == 0) return new AssetBundleBuild[0];
+
+        AssetBundleBuild build = new AssetBundleBuild();
+        build.assetBundleName = abname;
+        build.assetNames = list.ToArray();
+        return new AssetBundleBuild[] { build };
+    }
+
     private static void CompareManifestFile(AssetBundleManifest last, AssetBundleManifest now)
     {
         if (last == null || now == null)
@@ -327,39 +383,7 @@ public class PackageApi
         }
     }
 
-    // build asset config
-    private static void BuildAssetConfig(string path, List<AssetBundleBuild> buildmap)
-    {
-        string abname = Path.GetFileNameWithoutExtension(path).ToLower();
-        AssetBundleBuild build = new AssetBundleBuild();
-        build.assetBundleName = abname + AB_EXTENSION;
-        build.assetNames = new string[] { path };
-        buildmap.Add(build);
-    }
-
-    // build lua config
-    private static void BuildLuaConfig(string path, List<AssetBundleBuild> buildmap)
-    {
-        string content = string.Empty;
-        for (int i = 0; i < buildmap.Count; i++)
-        {
-            if (!buildmap[i].assetBundleName.StartsWith("lua"))
-                continue;
-
-            if (content != string.Empty) content += "\n";
-            content += buildmap[i].assetBundleName;
-        }
-        File.WriteAllText(path, content);
-
-        //add to build
-        string abname = Path.GetFileNameWithoutExtension(path).ToLower();
-        AssetBundleBuild build = new AssetBundleBuild();
-        build.assetBundleName = abname + AB_EXTENSION;
-        build.assetNames = new string[] { path };
-        buildmap.Add(build);
-    }
-
-    // build version file
+    // Write Version File
     private static void BuildVersionFile(string path, string output, List<AssetBundleBuild> buildmap)
     {
         string content = string.Empty;
@@ -371,120 +395,10 @@ public class PackageApi
             content += abname + "|" + Util.MD5File(filename) + "|" + Util.GetFileSize(filename);
         }
         File.WriteAllText(path, content);
-    }
 
-    /// build font assetbundle
-    private static void BuildFontAssetBundle(string lang, List<AssetBundleBuild> buildmap)
-    {
-        var map = new List<AssetBundleBuild>();
-        var backup = "Assets/Game/Assets/Fonts/Backup";
-        var raw = "Assets/Game/Assets/Fonts/Text";
-        var abname = "fonts_text.ab";
-
-        File.Copy(raw + "/sh.ttf", raw + "temp.ttf", true);
-        File.Copy(backup + "/sh-" + lang + ".ttf", raw + "/sh.ttf", true);
-        AssetDatabase.Refresh();
-
-        var files = Directory.GetFiles(raw, "*", SearchOption.AllDirectories);
-        List<string> list = new List<string>();
-        for (int i = 0; i < files.Length; i++)
-        {
-            string ext = Path.GetExtension(files[i]);
-            if (ext == ".meta")
-                continue;
-
-            list.Add(files[i].Replace("\\", "/"));
-        }
-
-        AssetBundleBuild build = new AssetBundleBuild();
-        build.assetBundleName = abname;
-        build.assetNames = list.ToArray();
-        map.Add(build);
-
-        var temp = OUTPUT_ROOT + "temp/";
-        if (Directory.Exists(temp)) Directory.Delete(temp, true);
-        Directory.CreateDirectory(temp);
-
-        BuildPipeline.BuildAssetBundles(temp, map.ToArray(),
-            BuildAssetBundleOptions.ChunkBasedCompression,
-            EditorUserBuildSettings.activeBuildTarget);
-
-        // 重命名ab
-        var filename = "fonts_text_" + lang + ".ab";
-        var now = Util.MD5File(temp + abname);
-        var old = "";
-        if (File.Exists(OUTPUT_ROOT + filename))
-            old = Util.MD5File(OUTPUT_ROOT + filename);
-        if (now != old)
-            File.Copy(temp + abname, OUTPUT_ROOT + filename, true);
-        Directory.Delete(temp, true);
-
-        // 添加到版本管理
-        build.assetBundleName = filename;
-        buildmap.Add(build);
-
-        File.Copy(raw + "temp.ttf", raw + "/sh.ttf", true);
-        File.Delete(raw + "temp.ttf");
-        AssetDatabase.Refresh();
-    }
-
-    /// pack assetbundles zip ab.zip, multi: multi-language
-    public static void PackAssetBundlesZip(bool multi)
-    {
-        List<AssetBundleBuild> buildmap = PackAssetBundles(multi);
-        if (buildmap == null)
-            return;
-
-        //create temp folder
-        string zipPath = OUTPUT_ROOT + "ZIP/";
-        if (Directory.Exists(zipPath)) Directory.Delete(zipPath, true);
-        Directory.CreateDirectory(zipPath);
-
-        string abPath = EditorConst.AB_PATH;
-        if (Directory.Exists(abPath)) Directory.Delete(abPath, true);
-        Directory.CreateDirectory(abPath);
-
-        //add version file
         AssetBundleBuild build = new AssetBundleBuild();
         build.assetBundleName = "version.txt";
         buildmap.Add(build);
-
-        //copy assetbundle file
-        for (int i = 0; i < buildmap.Count; i++)
-        {
-            string abname = buildmap[i].assetBundleName;
-            if (abname.EndsWith(".txt") || abname.EndsWith(".bytes"))
-            {
-                FileInfo file = new FileInfo(OUTPUT_ROOT + abname);
-                file.CopyTo(Path.Combine(zipPath, abname), true);
-            }
-            if (abname.EndsWith(".txt") || abname.EndsWith(".ab"))
-            {
-                FileInfo file = new FileInfo(OUTPUT_ROOT + abname);
-                file.CopyTo(Path.Combine(abPath, abname), true);
-            }
-        }
-
-        //copy database version
-        var lines = File.ReadAllLines(XVERSION_PATH);
-        for (int i=0; i<lines.Length; i++)
-        {
-            var line = lines[i].Split('|');
-            File.Copy(OUTPUT_ROOT + line[0], Path.Combine(zipPath, line[0]), true);
-        }
-        var xname = Path.GetFileName(XVERSION_PATH);
-        File.Copy(XVERSION_PATH, Path.Combine(zipPath, xname), true);
-
-        //create zip files
-        Zip.ZipDerctory(zipPath, EditorConst.ABZIP_PATH, ".manifest|.meta");
-
-        //byte[] bytes = File.ReadAllBytes(ABZIP_PATH);
-        //byte[] buff = AesTool.Encrypt(bytes, 0, bytes.Length, SDKConst.SECRET);
-        //File.WriteAllBytes(ABZIP_PATH, buff);
-
-        AssetDatabase.Refresh();
-        UnityEngine.Debug.Log("Build ab.zip finish!!");
     }
-
 
 }

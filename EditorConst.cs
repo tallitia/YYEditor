@@ -8,15 +8,9 @@ public class EditorConst
 
     public const string LUA_ROOT = GAME_ROOT + "Lua/";
 
-    public const string LUA_OUT = ASSET_ROOT + "Lua/";
-
     public const string TOLUA_ROOT = GAME_ROOT + "ToLua/Lua/";
 
-    public const string TOLUA_OUT = ASSET_ROOT + "ToLua/";
-
     public const string DATABASE_ROOT = LUA_ROOT + "/database/";
-
-    public const string DATABASE_OUT = LUA_OUT + "/database/";
 
     public const string LUA_CONFIG_PATH = GAME_ROOT + "Editor/Config/LuaConfig.txt";
 

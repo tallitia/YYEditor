@@ -7,39 +7,26 @@ using System.Diagnostics;
 
 public class LuaPackager {
 
-    public static void EncodeLuaFiles()
-    {
-        EncodeLuaJIT32Files();
-        EncodeLuaJIT64Files();
-        AssetDatabase.Refresh();
-        UnityEngine.Debug.Log("Encode lua files finish!!");
-    }
-
-    #region Database的处理
-
     public static void EncodeDatabaseFiles()
     {
-        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorConst.LUA_OUT + "32/database/", 32);
-        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorConst.LUA_OUT + "64/database/", 64);
+        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorUtil.LuaOutPath + "/Lua32/database/", 32);
+        HandleAllLuaFiles(EditorConst.DATABASE_ROOT, EditorUtil.LuaOutPath + "/Lua64/database/", 64);
     }
-    #endregion
 
-    public static void EncodeLuaJIT32Files()
+    public static void EncodeLuaFiles()
     {
-        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorConst.LUA_OUT + "32/", 32);
-        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorConst.TOLUA_OUT + "32/", 32);
+#if UNITY_EDITOR_OSX
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorUtil.LuaOutPath + "/Lua32/", 64);
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorUtil.LuaOutPath + "/Lua64/", 64);
+#else
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorUtil.LuaOutPath + "/Lua32/", 32);
+        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorUtil.LuaOutPath + "/Lua64/", 64);
 
+        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorUtil.LuaOutPath + "/Lua32/", 32);
+        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorUtil.LuaOutPath + "/Lua64/", 64);
+#endif
         AssetDatabase.Refresh();
         UnityEngine.Debug.Log("Encode LuaJIT32 lua files finish!!");
-    }
-
-    public static void EncodeLuaJIT64Files()
-    {
-        HandleAllLuaFiles(EditorConst.LUA_ROOT, EditorConst.LUA_OUT + "32/", 64);
-        HandleAllLuaFiles(EditorConst.TOLUA_ROOT, EditorConst.TOLUA_OUT + "32/", 64);
-
-        AssetDatabase.Refresh();
-        UnityEngine.Debug.Log("Encode LuaJIT64 lua files finish!!");
     }
 
     // 处理所有的lua文件。 mode:0 不用byte  32 luajit32  64 luajit 64
@@ -54,17 +41,19 @@ public class LuaPackager {
             string dest = destDir + file + ".bytes";
             string dir = Path.GetDirectoryName(dest);
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-            //ios 使用luac
-            if (PackageApi.buildTarget == BuildTarget.iOS)
-                DoEncodeLuacFile(src, dest, mode);
-            else
-                DoEncodeJITFile(src, dest, mode);
+            src = Path.GetFullPath(src);
+            //都是用jit
+            //if (IOUtil.NewCopy(src, luaTempFile))
+#if UNITY_EDITOR_OSX
+            DoEncodeLuacFile(src, dest, mode);
+#else
+            DoEncodeJITFile(src, dest, mode);
+#endif
         }
     }
 
-    //windows 和 Android 的Lua编译方式
-    public static void DoEncodeJITFile(string srcFile, string destFile, int mode)
+    //JIT 的Lua编译方式
+    private static void DoEncodeJITFile(string srcFile, string destFile, int mode)
     {
         if (mode == 0)
         {
@@ -73,10 +62,10 @@ public class LuaPackager {
         }
 
         string currDir = Directory.GetCurrentDirectory();
-        Directory.SetCurrentDirectory("LuaEncoder/luajit" + mode + "/");
+        Directory.SetCurrentDirectory("LuaEncoder/Luajit" + mode + "/");
         ProcessStartInfo info = new ProcessStartInfo();
         info.FileName = "luajit.exe";
-        info.Arguments = "-b ../../" + srcFile + " ../../" + destFile;
+        info.Arguments = "-b " + srcFile + " " + destFile;
         info.WindowStyle = ProcessWindowStyle.Hidden;
         info.ErrorDialog = true;
         info.UseShellExecute = true;
@@ -86,71 +75,65 @@ public class LuaPackager {
         Directory.SetCurrentDirectory(currDir);
     }
 
-    //iOS的Lua编译方式
-    public static void DoEncodeLuacFile(string srcFile, string destFile, int mode)
+    //LUAC 的编译方式
+    private static void DoEncodeLuacFile(string srcFile, string destFile, int mode)
     {
         if (mode == 0)
         {
             File.Copy(srcFile, destFile, true);
             return;
         }
-
         string currDir = Directory.GetCurrentDirectory();
-        Directory.SetCurrentDirectory("LuaEncoder/luavm/");
-        ProcessStartInfo info = new ProcessStartInfo();
-        info.FileName = "./luac";
-        info.Arguments = "-o ../../" + srcFile + " ../../" + destFile;
-        info.WindowStyle = ProcessWindowStyle.Hidden;
-        info.ErrorDialog = true;
-        info.UseShellExecute = false;
+        try
+        {
+            Directory.SetCurrentDirectory(currDir + "/LuaEncoder/LuaC/");
+            ProcessStartInfo info = new ProcessStartInfo();
+            info.FileName = "./luac";
+            info.Arguments = "-s -o " + destFile + " " + srcFile;
+            info.WindowStyle = ProcessWindowStyle.Hidden;
+            info.ErrorDialog = true;
+            info.UseShellExecute = false;
 
-        Process pro = Process.Start(info);
-        pro.WaitForExit();
-        Directory.SetCurrentDirectory(currDir);
+            Process pro = Process.Start(info);
+            pro.WaitForExit();
+        }
+        catch(System.Exception e)
+        {
+            //LogUtil.LogExInfo("编译Lua异常 " , e);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(currDir);
+        }
+
+
     }
 
-    public static void BuildDatabaseFiles()
+    [MenuItem("Game/打资源包/Database/Copy")]
+    public static void CreateDatabaseFile()
     {
-        var src = "Assets/Game/Assets/Lua32/database/";
-        var files = Directory.GetFiles(src, "*.bytes", SearchOption.AllDirectories);
-        var content = string.Empty;
-        for (int i = 0; i < files.Length; i++)
+        string lua32 = EditorUtil.LuaOutPath + "/Lua32/database";
+        if (Directory.Exists(lua32))
         {
-            if (content != string.Empty) content += "\n";
-            var filename = "lua32_database_" + Path.GetFileName(files[i]).ToLower();
-            content += filename + "|" + Util.MD5File(files[i]) + "|" + Util.GetFileSize(files[i]);
-
-            var dest = PackageApi.OUTPUT_ROOT + filename;
-            if (File.Exists(dest))
+            string[] files = Directory.GetFiles(lua32, "*.bytes");
+            foreach (var item in files)
             {
-                var old = Util.MD5File(dest);
-                var now = Util.MD5File(files[i]);
-                if (old == now) continue;
+                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua32_database_" + Path.GetFileNameWithoutExtension(item).ToLower()+".bytes");
             }
-            File.Copy(files[i], dest, true);
         }
 
-        src = "Assets/Game/Assets/Lua64/database/";
-        files = Directory.GetFiles(src, "*.bytes", SearchOption.AllDirectories);
-        for (int i = 0; i < files.Length; i++)
+        string lua64 = EditorUtil.LuaOutPath + "/Lua64/database";
+        if (Directory.Exists(lua32))
         {
-            if (content != string.Empty) content += "\n";
-            var filename = "lua64_database_" + Path.GetFileName(files[i]).ToLower();
-            content += filename + "|" + Util.MD5File(files[i]) + "|" + Util.GetFileSize(files[i]);
-
-            var dest = PackageApi.OUTPUT_ROOT + filename;
-            if (File.Exists(dest))
+            string[] files = Directory.GetFiles(lua64, "*.bytes");
+            foreach (var item in files)
             {
-                var old = Util.MD5File(dest);
-                var now = Util.MD5File(files[i]);
-                if (old == now) continue;
+                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua64_database_" + Path.GetFileNameWithoutExtension(item).ToLower() + ".bytes");
             }
-            File.Copy(files[i], dest, true);
         }
 
-        File.WriteAllText(PackageApi.XVERSION_PATH, content);
+        AssetDatabase.Refresh();
+
     }
-
-
 
 }
