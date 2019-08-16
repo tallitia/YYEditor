@@ -109,7 +109,7 @@ public class LuaPackager {
 
     }
 
-    [MenuItem("Game/打资源包/Database/Copy")]
+    [MenuItem("Game/打资源包/Copy")]
     public static void CreateDatabaseFile()
     {
         string lua32 = EditorUtil.LuaOutPath + "/Lua32/database";
@@ -118,7 +118,7 @@ public class LuaPackager {
             string[] files = Directory.GetFiles(lua32, "*.bytes");
             foreach (var item in files)
             {
-                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua32_database_" + Path.GetFileNameWithoutExtension(item).ToLower()+".bytes");
+                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua32_database_" + Path.GetFileNameWithoutExtension(item).ToLower()+".bytes", true);
             }
         }
 
@@ -128,10 +128,9 @@ public class LuaPackager {
             string[] files = Directory.GetFiles(lua64, "*.bytes");
             foreach (var item in files)
             {
-                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua64_database_" + Path.GetFileNameWithoutExtension(item).ToLower() + ".bytes");
+                File.Copy(item, Application.streamingAssetsPath + "/ab/" + "lua64_database_" + Path.GetFileNameWithoutExtension(item).ToLower() + ".bytes", true);
             }
         }
-
         AssetDatabase.Refresh();
 
     }

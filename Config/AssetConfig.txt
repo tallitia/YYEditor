@@ -1,5 +1,6 @@
 Lua32|4
 Lua32/3rd|1
+Lua32/database|4
 Lua32/cjson|1
 Lua32/common|1
 Lua32/event|1
@@ -19,6 +20,7 @@ Lua32/System|1
 Lua32/UnityEngine|1
 Lua64|4
 Lua64/3rd|1
+Lua64/database|4
 Lua64/cjson|1
 Lua64/common|1
 Lua64/event|1

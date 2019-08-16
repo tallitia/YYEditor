@@ -1,5 +1,6 @@
 lua32.ab
 lua32_3rd.ab
+lua32_database.ab
 lua32_cjson.ab
 lua32_common.ab
 lua32_event.ab
@@ -32,6 +33,7 @@ lua32_module_drill.ab
 lua32_module_fight.ab
 lua32_module_friend.ab
 lua32_module_fystele.ab
+lua32_module_gashapon.ab
 lua32_module_goodspok.ab
 lua32_module_guild.ab
 lua32_module_guildhall.ab
@@ -76,6 +78,7 @@ lua32_system.ab
 lua32_unityengine.ab
 lua64.ab
 lua64_3rd.ab
+lua64_database.ab
 lua64_cjson.ab
 lua64_common.ab
 lua64_event.ab
@@ -108,6 +111,7 @@ lua64_module_drill.ab
 lua64_module_fight.ab
 lua64_module_friend.ab
 lua64_module_fystele.ab
+lua64_module_gashapon.ab
 lua64_module_goodspok.ab
 lua64_module_guild.ab
 lua64_module_guildhall.ab

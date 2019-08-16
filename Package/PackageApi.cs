@@ -52,7 +52,8 @@ public class PackageApi
                 string p = EditorConst.AB_OUTPUT_PATH;
                 EditorConst.AB_OUTPUT_PATH = Directory.GetCurrentDirectory() + "/" + p;
             }
-            return EditorConst.AB_OUTPUT_PATH + VERSION + "/" + AppConst.OS + "/";
+            //return EditorConst.AB_OUTPUT_PATH + VERSION + "/" + AppConst.OS + "/";
+            return EditorConst.AB_PATH;
         }
     }
 
@@ -92,24 +93,12 @@ public class PackageApi
         BuildAB("Windows", "Zip", BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64, BuildZipAB);
     }
 
-    [MenuItem("Game/打资源包/Database/iOS")]
+    [MenuItem("Game/打资源包/Database/All")]
     public static void BuildDatabaseiOS()
     {
-        BuildAB("iOS", "Database", BuildTargetGroup.iOS, BuildTarget.iOS, BuildDatabase);
+        BuildAB("iOS", "Database", EditorUserBuildSettings.selectedBuildTargetGroup, EditorUserBuildSettings.activeBuildTarget, BuildDatabase);
     }
-
-    [MenuItem("Game/打资源包/Database/Android")]
-    public static void BuildDatabaseAndroid()
-    {
-        BuildAB("Android", "Database", BuildTargetGroup.Android, BuildTarget.Android, BuildDatabase);
-    }
-
-    [MenuItem("Game/打资源包/Database/Win")]
-    public static void BuildDatabaseWin()
-    {
-        BuildAB("Windows", "Database", BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64, BuildDatabase);
-    }
-
+    
     [MenuItem("Game/打资源包/Lua/iOS")]
     public static void BuildLuaiOS()
     {
@@ -162,8 +151,30 @@ public class PackageApi
 
     private static void BuildLua()
     {
+        //Encode
         LuaPackager.EncodeLuaFiles();
+        //Build AB
+        //Get Lua AssetBundle File
+        //Read The Build Config File
+        Dictionary<string, int> config = new Dictionary<string, int>();
+        EditorUtil.ReadAssetConfig(config);
 
+        List<AssetBundleBuild> buildmap = new List<AssetBundleBuild>();
+        foreach (var pair in config)
+        {
+            BundleAction handler = allHandler[pair.Value - 1];
+            string path = EditorConst.ASSET_ROOT + pair.Key;
+            if (Directory.Exists(path) && pair.Key.StartsWith("Lua"))
+            {
+                var builds = handler.Invoke(path);
+                buildmap.AddRange(builds as IEnumerable<AssetBundleBuild>);
+            }
+        }
+        DoMakeAssetBundleLuaConfig(EditorConst.LUA_CONFIG_PATH, buildmap);
+        DoMakeAssetBundleAssetConfig(EditorConst.ASSET_CONFIG_PATH, buildmap);
+        BuildPipeline.BuildAssetBundles(OUTPUT_ROOT, buildmap.ToArray(),
+            BuildAssetBundleOptions.ChunkBasedCompression,
+            EditorUserBuildSettings.activeBuildTarget);
 
         UnityEngine.Debug.Log("Build Lua Finish!!");
     }
